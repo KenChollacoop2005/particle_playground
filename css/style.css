@@ -1,17 +1,28 @@
 /* ---------------------------------------------------------------
-   Particle Playground — base styles
-   Dark canvas-first layout. Swap the color tokens below to match
-   the K.C. Bulletin visual language when this gets embedded.
+   Particle Playground — styles
+   Lab instrument / scope console: dark, hairline grid, corner
+   brackets, small technical readouts, one restrained accent.
+
+   All color lives in the tokens below. The canvas modes read these
+   same tokens at runtime (js/ui.js palette), so a retheme here
+   recolors the simulations too, not just the panels.
 ------------------------------------------------------------------ */
 
 :root {
-  --bg: #0a0a0d;
-  --panel-bg: rgba(20, 20, 24, 0.85);
-  --panel-border: rgba(255, 255, 255, 0.08);
-  --text: #e8e8ea;
-  --text-dim: #8a8a92;
-  --accent: #5eead4;
-  --accent-dim: rgba(94, 234, 212, 0.15);
+  --bg: #06080a;
+  --panel-bg: rgba(9, 12, 15, 0.84);
+  --panel-border: rgba(94, 234, 212, 0.16);
+  --hairline: rgba(255, 255, 255, 0.07);
+  --grid: #5eead4;               /* grid line color; opacity applied below */
+  --text: #d8e0e2;
+  --text-dim: #74848a;
+  --accent: #5eead4;             /* signal 1: teal   */
+  --accent-2: #f5b041;           /* signal 2: amber  */
+  --accent-3: #fb7185;           /* signal 3: rose   */
+  --accent-dim: rgba(94, 234, 212, 0.12);
+
+  --font: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace;
+  --edge: 20px;                  /* inset of all fixed chrome from the viewport */
 }
 
 * {
@@ -24,100 +35,267 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--bg);
-  font-family: 'Courier New', ui-monospace, monospace;
+  font-family: var(--font);
   color: var(--text);
+  background-color: var(--bg);
+}
+
+/* Graticule: minor lines every 24px, major every 120px, like a scope face.
+   The canvas is transparent, so this sits behind every mode. */
+body {
+  --grid-major: color-mix(in srgb, var(--grid) 6%, transparent);
+  --grid-minor: color-mix(in srgb, var(--text) 2%, transparent);
+  background-image:
+    linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-minor) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-minor) 1px, transparent 1px),
+    radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.55) 100%);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, 100% 100%;
+  background-position: center center;
 }
 
 #canvas {
   display: block;
   width: 100vw;
   height: 100vh;
-  background: var(--bg);
+  background: transparent;
+  touch-action: none;          /* pointer events drive the sims on touch, not page scroll */
+  cursor: crosshair;
 }
 
-/* ---------------- Mode title (top-left) ---------------- */
+button,
+select {
+  font-family: inherit;
+}
 
-#mode-title {
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------- Frame corners ---------------- */
+
+.frame-corner {
   position: fixed;
-  top: 20px;
-  left: 20px;
-  font-size: 13px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  width: 16px;
+  height: 16px;
+  border-color: var(--panel-border);
+  border-style: solid;
+  border-width: 0;
+  pointer-events: none;
+}
+.frame-corner.tl { top: 8px;    left: 8px;  border-top-width: 1px;    border-left-width: 1px; }
+.frame-corner.tr { top: 8px;    right: 8px; border-top-width: 1px;    border-right-width: 1px; }
+.frame-corner.bl { bottom: 8px; left: 8px;  border-bottom-width: 1px; border-left-width: 1px; }
+.frame-corner.br { bottom: 8px; right: 8px; border-bottom-width: 1px; border-right-width: 1px; }
+
+/* ---------------- Title block (top-left) ---------------- */
+
+#title-block {
+  position: fixed;
+  top: var(--edge);
+  left: var(--edge);
   pointer-events: none;
   user-select: none;
+}
+
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+#mode-title {
+  margin: 6px 0 4px;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.title-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+
+#paused-badge {
+  color: var(--accent-2);
+  animation: blink 1.2s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to { visibility: hidden; }
+}
+
+/* ---------------- Shared panel look ---------------- */
+
+#mode-switcher,
+#controls,
+#hud,
+#ui-toggle {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* ---------------- UI panel (top-right) ---------------- */
 
 #ui {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: var(--edge);
+  right: var(--edge);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 10px;
+  gap: 8px;
   z-index: 10;
+  max-height: calc(100vh - 2 * var(--edge) - 40px);
+}
+
+.ui-top {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
 }
 
 #mode-switcher {
   display: flex;
-  gap: 6px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  padding: 6px;
-  backdrop-filter: blur(6px);
+  gap: 2px;
+  padding: 3px;
 }
 
 .mode-btn {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-dim);
-  font-family: inherit;
-  font-size: 12px;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 8px 12px;
-  border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mode-num {
+  font-size: 9px;
+  opacity: 0.6;
 }
 
 .mode-btn:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .mode-btn.active {
   color: var(--accent);
   background: var(--accent-dim);
+  border-color: var(--panel-border);
+}
+
+#ui-toggle {
+  color: var(--text-dim);
+  width: 34px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+#ui-toggle:hover {
+  color: var(--text);
 }
 
 #controls {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  padding: 14px 16px;
-  min-width: 220px;
-  backdrop-filter: blur(6px);
-  font-size: 12px;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  width: 280px;
+  font-size: 11px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--panel-border) transparent;
 }
 
 #controls.hidden {
   display: none;
 }
 
+.mode-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- "How this works" blurb ---- */
+
+.blurb {
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 10px;
+}
+
+.blurb summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  list-style: none;
+}
+
+.blurb summary::-webkit-details-marker {
+  display: none;
+}
+
+.blurb summary::before {
+  content: '+ ';
+}
+
+.blurb[open] summary::before {
+  content: '– ';
+}
+
+.blurb p {
+  margin: 8px 0 0;
+  line-height: 1.6;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* ---- Rows ---- */
+
+.control-section {
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-section::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+
 .control-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .control-row label {
@@ -129,32 +307,355 @@ html, body {
 
 .control-row label span.value {
   color: var(--accent);
-}
-
-.control-row input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .control-note {
   color: var(--text-dim);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.control-note.status {
+  color: var(--text);
   opacity: 0.8;
 }
 
-#ui-toggle {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  color: var(--text-dim);
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
+.control-note.status.error {
+  color: var(--accent-3);
+  opacity: 1;
 }
 
-#ui-toggle:hover {
+/* ---- Range input: thin track, square thumb ---- */
+
+.control-row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.control-row input[type="range"]::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--text-dim);
+  opacity: 0.6;
+}
+
+.control-row input[type="range"]::-moz-range-track {
+  height: 1px;
+  background: var(--text-dim);
+}
+
+.control-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 9px;
+  height: 13px;
+  margin-top: -6px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+}
+
+.control-row input[type="range"]::-moz-range-thumb {
+  width: 7px;
+  height: 11px;
+  border-radius: 0;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+}
+
+.control-row input[type="range"]:hover::-webkit-slider-thumb,
+.control-row input[type="range"]:focus-visible::-webkit-slider-thumb {
+  background: var(--accent);
+}
+
+.control-row input[type="range"]:hover::-moz-range-thumb,
+.control-row input[type="range"]:focus-visible::-moz-range-thumb {
+  background: var(--accent);
+}
+
+.control-row input[type="range"]:focus-visible {
+  outline: none;
+}
+
+.control-row input[type="range"]:focus-visible::-webkit-slider-runnable-track {
+  background: var(--accent);
+}
+
+/* ---- Select ---- */
+
+.control-row select {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
   color: var(--text);
+  border: 1px solid var(--hairline);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* ---- Buttons ---- */
+
+.button-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.button-row > * {
+  flex: 1 1 0;
+}
+
+.button-row.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.ctl-btn {
+  padding: 7px 8px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.ctl-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ctl-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.panel-footer {
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.panel-footer .ctl-btn {
+  color: var(--text-dim);
+}
+
+/* ---- Meters (audio mode) ---- */
+
+.meter-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.meter-track {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  opacity: 0.85;
+}
+
+.meter-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--text);
+  opacity: 0.7;
+}
+
+.beat-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.beat-led {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--accent-2);
+  transition: background 0.25s ease-out, box-shadow 0.25s ease-out;
+}
+
+.beat-led.on {
+  background: var(--accent-2);
+  box-shadow: 0 0 10px var(--accent-2);
+  transition: none;
+}
+
+.beat-bpm {
+  margin-left: auto;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- HUD (bottom-left) ---------------- */
+
+#hud {
+  position: fixed;
+  left: var(--edge);
+  bottom: var(--edge);
+  min-width: 200px;
+  padding: 8px 12px 10px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  z-index: 5;
+}
+
+.hud-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+#hud-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 0 0 8px;
+  cursor: pointer;
+}
+
+#hud-close:hover {
+  color: var(--text);
+}
+
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.hud-value {
+  color: var(--text);
+}
+
+/* ---------------- Key hints (bottom-right) ---------------- */
+
+#key-hints {
+  position: fixed;
+  right: var(--edge);
+  bottom: var(--edge);
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  color: var(--text-dim);
+  pointer-events: none;
+  user-select: none;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 16px;
+  margin-right: 2px;
+  padding: 1px 4px;
+  border: 1px solid var(--hairline);
+  font-family: inherit;
+  font-size: 9px;
+  text-align: center;
+  color: var(--text);
+}
+
+/* ---------------- Small screens + touch ---------------- */
+
+@media (max-width: 900px), (hover: none) {
+  #key-hints {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --edge: 12px;
+  }
+
+  #mode-title {
+    font-size: 17px;
+  }
+
+  #ui {
+    top: 86px;
+    left: var(--edge);
+    right: var(--edge);
+    align-items: stretch;
+    max-height: calc(100vh - 86px - 110px);
+  }
+
+  .ui-top {
+    width: 100%;
+  }
+
+  #mode-switcher {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mode-btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 4px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+    white-space: normal;
+    text-align: center;
+  }
+
+  #ui-toggle {
+    flex: none;
+  }
+
+  .mode-num {
+    display: none;
+  }
+
+  #controls {
+    width: auto;
+  }
+
+  #hud {
+    min-width: 0;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
