@@ -1,7 +1,7 @@
 # Particle Playground
 
 A small collection of particle-based simulations sharing one canvas shell and
-control panel. Built as a supplementary entry for the K.C. Bulletin portfolio.
+control panel. 
 
 Vanilla JS + HTML5 Canvas, no build step, no framework — deploys as a static
 site (GitHub Pages).
