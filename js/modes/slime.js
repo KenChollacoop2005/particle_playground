@@ -1,65 +1,22 @@
-/* ---------------------------------------------------------------
-   Mode: Slime Mold (Physarum)
-   Based on Jeff Jones' 2010 Physarum transport-network model.
-
-   Every agent does the same four things each step:
-     1. sense  — sample the trail map at three points ahead of it
-                 (left / center / right, at sensorAngle and sensorDist)
-     2. rotate — turn toward the strongest reading
-     3. move   — step forward, wrapping around the edges
-     4. deposit — add scent to the trail map where it now stands
-   Then the whole map diffuses (3x3 blur) and decays a little.
-
-   Nobody draws the network. Agents follow scent, which makes the
-   scent stronger where they go, which pulls more agents in. That
-   positive feedback loop is the whole trick.
-
-   Architecture (the part that makes it fast):
-   - The trail map is a Float32Array at a capped resolution
-     (SIM_PIXEL_BUDGET), not canvas pixels. Agents read and write the
-     array directly. No per-agent canvas calls, ever.
-   - Diffusion is a separable box blur (horizontal pass into a
-     scratch buffer, vertical pass back), 6 reads per pixel instead
-     of 9, with wrap-around edges so the world is a torus.
-   - Decay is folded into the same vertical pass (one multiply).
-   - Once per step the map is tone-mapped into one ImageData
-     (Uint32 writes, one per pixel), put on an offscreen canvas at sim
-     resolution, and drawImage() scales it up to the screen.
-   - Headings are unit vectors, turned by precomputed sin/cos, so the
-     per-agent loop has no trig at all. That one change took a step
-     from ~30 ms to ~6.5 ms at 80k agents.
-   - Trail cells are capped (TRAIL_CAP). Without it the strongest
-     strand wins every tug of war and the colony collapses into one
-     thick tube instead of a network.
-   - Near-zero trail values are flushed to 0 so decay never produces
-     denormal floats (which are very slow on x86).
-   - The sim runs on a fixed 60 Hz timestep with an accumulator, so
-     the patterns look the same on a 60, 120 or 144 Hz display.
-   - Up to 3 species, each with its own trail channel. An agent is
-     pulled by its own channel and pushed (or pulled) by the others,
-     set by the Cross-species slider.
------------------------------------------------------------------- */
+// Mode: Slime Mold
 
 (function () {
-
   const UI = window.PARTICLE_UI;
 
   const DEFAULTS = {
     agents: 80000,
     species: 1,
-    sensorAngle: 30,  // degrees either side of heading
-    sensorDist: 10,   // sim px ahead
-    turnSpeed: 25,    // degrees per step
-    speed: 1.1,       // sim px per step
-    deposit: 1.0,     // scent added per agent per step (cells cap at TRAIL_CAP)
-    decay: 12,        // % of trail lost per step
-    diffuse: 0.25,    // 0 = no blur, 1 = full 3x3 blur each step
-    rivalry: 0.8,     // cross-species: +1 repel, -1 attract
+    sensorAngle: 30,
+    sensorDist: 10,
+    turnSpeed: 25,
+    speed: 1.1,
+    deposit: 1.0,
+    decay: 12,
+    diffuse: 0.25,
+    rivalry: 0.8,
     spawn: 'random',
   };
 
-  // Each preset is a full set of overrides on DEFAULTS, found by
-  // running the sim headless for ~900 steps and comparing screenshots.
   const PRESETS = [
     { name: 'Network',   values: {} },
     { name: 'Big cells', values: { sensorAngle: 45, turnSpeed: 45, sensorDist: 18 } },
@@ -67,8 +24,6 @@
     { name: 'Colony',    values: { spawn: 'disc', decay: 6, diffuse: 0.6 } },
   ];
 
-  // Param name -> control key, so presets can drive the real controls
-  // (which keeps the readouts and the URL hash in sync).
   const CONTROL_KEYS = {
     agents: 'agents', species: 'species', rivalry: 'rival', spawn: 'spawn',
     sensorAngle: 'sa', sensorDist: 'sd', turnSpeed: 'turn', speed: 'speed',
@@ -77,27 +32,23 @@
 
   const MAX_AGENTS = 250000;
   const MAX_SPECIES = 3;
-  const SIM_PIXEL_BUDGET = 480000; // ~960x500. Above this the blur pass starts to cost real frame time.
+  const SIM_PIXEL_BUDGET = 480000;
   const STEP = 1 / 60;
   const MAX_STEPS_PER_FRAME = 2;
-  const TRAIL_CAP = 5;             // max scent per cell (see deposit in stepAgents)
-  const TONE_K = TRAIL_CAP * 0.3;  // trail value that maps to 50% brightness
-  const TURN_VARIANTS = 8;         // precomputed random turn amounts (no trig in the hot loop)
-  const BRUSH_RADIUS = 5;          // sim px
+  const TRAIL_CAP = 5;
+  const TONE_K = TRAIL_CAP * 0.3;
+  const TURN_VARIANTS = 8;
+  const BRUSH_RADIUS = 5;
   const BRUSH_AMOUNT = TRAIL_CAP;
 
   let params = { ...DEFAULTS };
-  let width = 0, height = 0;       // screen size (css px)
-  let simW = 0, simH = 0;          // trail map size
+  let width = 0, height = 0;
+  let simW = 0, simH = 0;
   let count = 0;
   let accumulator = 0;
   let dirty = true;
   let simMs = 0, renderMs = 0;
 
-  // Agents (Float64 so positions near the right edge can't round up to W).
-  // Heading is stored as a unit vector, not an angle: sensing and turning
-  // become rotations by precomputed sin/cos, so the inner loop has zero
-  // trig calls (it had 8 per agent, which was ~80% of the step cost).
   const agentX = new Float64Array(MAX_AGENTS);
   const agentY = new Float64Array(MAX_AGENTS);
   const agentDX = new Float64Array(MAX_AGENTS);
@@ -106,11 +57,9 @@
   const turnCos = new Float64Array(TURN_VARIANTS);
   const turnSin = new Float64Array(TURN_VARIANTS);
 
-  // Trail map: one channel per species, plus a scratch buffer for the blur.
   let trails = [];
   let scratch = null;
 
-  // Output.
   let off = null, offCtx = null, image = null, pixels = null;
 
   let lastBrush = null;
@@ -143,8 +92,6 @@
 
     switch (params.spawn) {
       case 'disc': {
-        // Random point in a disc, facing the center: collapses into a ring,
-        // then tears open into a network.
         const r = Math.sqrt(Math.random()) * minDim * 0.4;
         const t = Math.random() * Math.PI * 2;
         x = cx + Math.cos(t) * r;
@@ -161,7 +108,6 @@
         break;
       }
       case 'burst': {
-        // Everyone starts at the center heading outward.
         a = Math.random() * Math.PI * 2;
         x = cx + Math.cos(a) * 2;
         y = cy + Math.sin(a) * 2;
@@ -199,7 +145,6 @@
   function setSpecies(n) {
     params.species = n;
     for (let i = 0; i < count; i++) agentS[i] = i % n;
-    // Channels no longer in use would otherwise freeze on screen.
     for (let s = n; s < MAX_SPECIES; s++) trails[s].fill(0);
     dirty = true;
   }
@@ -217,8 +162,6 @@
     const rival = params.rivalry;
     const t0 = trails[0], t1 = trails[1], t2 = trails[2];
 
-    // A little randomness in the turn amount (60-100% of turnSpeed) keeps
-    // the network from locking into straight lines. Precomputed per step.
     const ta = (params.turnSpeed * Math.PI) / 180;
     for (let k = 0; k < TURN_VARIANTS; k++) {
       const t = ta * (0.6 + (0.4 * k) / (TURN_VARIANTS - 1));
@@ -226,9 +169,6 @@
       turnSin[k] = Math.sin(t);
     }
 
-    // Scent an agent of species s perceives at map index idx.
-    // Own channel attracts, the others count against it (or for it,
-    // if rivalry is negative).
     function smell(s, idx) {
       if (S === 1) return t0[idx];
       const own = s === 0 ? t0[idx] : s === 1 ? t1[idx] : t2[idx];
@@ -236,7 +176,6 @@
       return own - rival * (all - own);
     }
 
-    // Sample `sd` px along direction (dx, dy), wrapping around the edges.
     function sense(s, x, y, dx, dy) {
       let sx = x + dx * sd;
       let sy = y + dy * sd;
@@ -250,15 +189,13 @@
       const x = agentX[i], y = agentY[i];
       let dx = agentDX[i], dy = agentDY[i];
 
-      // Left/right sensors = heading rotated by -/+ sensorAngle.
       const fl = sense(s, x, y, dx * cosSA + dy * sinSA, dy * cosSA - dx * sinSA);
       const fc = sense(s, x, y, dx, dy);
       const fr = sense(s, x, y, dx * cosSA - dy * sinSA, dy * cosSA + dx * sinSA);
 
-      // Turn toward the strongest reading (-1 = left, +1 = right).
       let dir = 0;
-      if (fc > fl && fc > fr) dir = 0;                       // straight ahead is best
-      else if (fc < fl && fc < fr) dir = Math.random() < 0.5 ? -1 : 1; // fork: pick one
+      if (fc > fl && fc > fr) dir = 0;
+      else if (fc < fl && fc < fr) dir = Math.random() < 0.5 ? -1 : 1;
       else if (fl > fr) dir = -1;
       else if (fr > fl) dir = 1;
 
@@ -280,10 +217,6 @@
       agentDX[i] = dx;
       agentDY[i] = dy;
 
-      // Deposit, capped. Without a cap the busiest strand keeps getting
-      // stronger until it swallows every other one and the whole colony
-      // collapses into a single thick tube. Saturating it keeps weaker
-      // branches competitive, which is what keeps a network a network.
       const map = s === 0 ? t0 : s === 1 ? t1 : t2;
       const idx = (ny | 0) * W + (nx | 0);
       const v = map[idx] + dep;
@@ -291,15 +224,12 @@
     }
   }
 
-  // Separable 3x3 box blur with wrap-around, blended with the original
-  // by `diffuse`, and decay applied in the same pass.
   function diffuseAndDecay(map) {
     const W = simW, H = simH;
     const keep = 1 - params.decay / 100;
     const mix = params.diffuse;
     const tmp = scratch;
 
-    // Horizontal: tmp = left + center + right
     for (let y = 0; y < H; y++) {
       const row = y * W;
       const last = row + W - 1;
@@ -310,7 +240,6 @@
       tmp[last] = map[last - 1] + map[last] + map[row];
     }
 
-    // Vertical: blur = (up + center + down) / 9, then mix and decay.
     const inv9 = 1 / 9;
     for (let y = 0; y < H; y++) {
       const row = y * W;
@@ -321,9 +250,6 @@
         const v = map[i];
         const blurred = (tmp[up + x] + tmp[i] + tmp[down + x]) * inv9;
         const next = (v + (blurred - v) * mix) * keep;
-        // Flush near-zero to exactly zero. Repeated decay otherwise walks
-        // values down into denormal floats, which are 10-100x slower to
-        // do math on and quietly tank the frame rate after a minute.
         map[i] = next > 1e-4 ? next : 0;
       }
     }
@@ -337,10 +263,6 @@
 
   // ---------------- Rendering ----------------
 
-  // Tone-map every channel to 0..1 with v / (v + K), color it with its
-  // species color, sum the colors and push the hottest spots toward
-  // white. Alpha follows intensity, so the background grid shows
-  // through wherever there's no scent.
   function renderImage() {
     const n = simW * simH;
     const S = params.species;
@@ -379,8 +301,6 @@
         continue;
       }
 
-      // Un-premultiply (the canvas stores straight alpha), then bloom
-      // the brightest spots toward white.
       const inv = 1 / a;
       r *= inv; g *= inv; b *= inv;
       if (a > 1) a = 1;
@@ -395,7 +315,7 @@
     offCtx.putImageData(image, 0, 0);
   }
 
-  // ---------------- Pointer: paint scent ----------------
+  // ---------------- Pointer ----------------
 
   function brush(sx, sy) {
     const W = simW, H = simH;
@@ -417,7 +337,6 @@
     }
   }
 
-  // Paint along the drag segment so fast strokes don't leave gaps.
   function paint(x, y) {
     const sx = (x / width) * simW;
     const sy = (y / height) * simH;
@@ -438,12 +357,11 @@
 
   function applyPreset(preset) {
     const target = { ...DEFAULTS, ...preset.values };
-    target.agents = params.agents; // keep the user's count; it's a perf choice, not a look
+    target.agents = params.agents;
     for (const [name, key] of Object.entries(CONTROL_KEYS)) {
       const el = panelEl.querySelector(`[data-key="${key}"]`);
       if (!el || String(el.value) === String(target[name])) continue;
       el.value = target[name];
-      // Bubbles so the shell sees it and updates the URL hash.
       el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
     }
   }
@@ -554,7 +472,6 @@
       buildControls(controlsEl);
     },
 
-    // New buffer at the new resolution; losing the current pattern is fine.
     resize(w, h) {
       width = w;
       height = h;
@@ -571,7 +488,7 @@
         accumulator -= STEP;
         steps++;
       }
-      if (steps === MAX_STEPS_PER_FRAME) accumulator = 0; // running slow: drop time rather than spiral
+      if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
       if (steps) simMs = simMs * 0.9 + ((performance.now() - t0) / steps) * 0.1;
     },
 

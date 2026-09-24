@@ -1,28 +1,20 @@
-/* ---------------------------------------------------------------
-   Particle Playground — styles
-   Lab instrument / scope console: dark, hairline grid, corner
-   brackets, small technical readouts, one restrained accent.
-
-   All color lives in the tokens below. The canvas modes read these
-   same tokens at runtime (js/ui.js palette), so a retheme here
-   recolors the simulations too, not just the panels.
------------------------------------------------------------------- */
+/* Particle Playground styles */
 
 :root {
   --bg: #06080a;
   --panel-bg: rgba(9, 12, 15, 0.84);
   --panel-border: rgba(94, 234, 212, 0.16);
   --hairline: rgba(255, 255, 255, 0.07);
-  --grid: #5eead4;               /* grid line color; opacity applied below */
+  --grid: #5eead4;
   --text: #d8e0e2;
   --text-dim: #74848a;
-  --accent: #5eead4;             /* signal 1: teal   */
-  --accent-2: #f5b041;           /* signal 2: amber  */
-  --accent-3: #fb7185;           /* signal 3: rose   */
+  --accent: #5eead4;
+  --accent-2: #f5b041;
+  --accent-3: #fb7185;
   --accent-dim: rgba(94, 234, 212, 0.12);
 
   --font: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace;
-  --edge: 20px;                  /* inset of all fixed chrome from the viewport */
+  --edge: 20px;
 }
 
 * {
@@ -40,8 +32,6 @@ html, body {
   background-color: var(--bg);
 }
 
-/* Graticule: minor lines every 24px, major every 120px, like a scope face.
-   The canvas is transparent, so this sits behind every mode. */
 body {
   --grid-major: color-mix(in srgb, var(--grid) 6%, transparent);
   --grid-minor: color-mix(in srgb, var(--text) 2%, transparent);
@@ -60,7 +50,7 @@ body {
   width: 100vw;
   height: 100vh;
   background: transparent;
-  touch-action: none;          /* pointer events drive the sims on touch, not page scroll */
+  touch-action: none;
   cursor: crosshair;
 }
 
@@ -90,7 +80,7 @@ select {
 .frame-corner.bl { bottom: 8px; left: 8px;  border-bottom-width: 1px; border-left-width: 1px; }
 .frame-corner.br { bottom: 8px; right: 8px; border-bottom-width: 1px; border-right-width: 1px; }
 
-/* ---------------- Title block (top-left) ---------------- */
+/* ---------------- Title block ---------------- */
 
 #title-block {
   position: fixed;
@@ -133,7 +123,7 @@ select {
   to { visibility: hidden; }
 }
 
-/* ---------------- Info button + panel (top-center) ---------------- */
+/* ---------------- Info button + panel ---------------- */
 
 #info {
   position: fixed;
@@ -152,7 +142,7 @@ select {
   height: 30px;
   border-radius: 50%;
   color: var(--accent);
-  font-size: 15px;          /* a step above the 12px panel text */
+  font-size: 15px;
   font-style: italic;
   font-weight: 500;
   line-height: 1;
@@ -166,7 +156,6 @@ select {
   border-color: var(--accent);
 }
 
-/* Same treatment as the per-mode "How this works" blurb. */
 #info-panel {
   width: min(460px, calc(100vw - 2 * var(--edge)));
   max-height: calc(100vh - 110px);
@@ -224,7 +213,7 @@ select {
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* ---------------- UI panel (top-right) ---------------- */
+/* ---------------- UI panel ---------------- */
 
 #ui {
   position: fixed;
@@ -316,7 +305,7 @@ select {
   gap: 12px;
 }
 
-/* ---- "How this works" blurb ---- */
+/* ---- Blurb ---- */
 
 .blurb {
   border-bottom: 1px solid var(--hairline);
@@ -405,7 +394,7 @@ select {
   opacity: 1;
 }
 
-/* ---- Range input: thin track, square thumb ---- */
+/* ---- Range input ---- */
 
 .control-row input[type="range"] {
   -webkit-appearance: none;
@@ -525,7 +514,7 @@ select {
   color: var(--text-dim);
 }
 
-/* ---- Meters (audio mode) ---- */
+/* ---- Meters ---- */
 
 .meter-row {
   display: grid;
@@ -589,7 +578,7 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------------- HUD (bottom-left) ---------------- */
+/* ---------------- HUD ---------------- */
 
 #hud {
   position: fixed;
@@ -639,7 +628,7 @@ select {
   color: var(--text);
 }
 
-/* ---------------- Key hints (bottom-right) ---------------- */
+/* ---------------- Key hints ---------------- */
 
 #key-hints {
   position: fixed;
@@ -682,9 +671,6 @@ kbd {
     font-size: 18px;
   }
 
-  /* Dead center would sit on top of the title at phone widths, so the
-     button moves to the right end of the title row and the panel spans
-     the screen. */
   #info {
     left: var(--edge);
     right: var(--edge);

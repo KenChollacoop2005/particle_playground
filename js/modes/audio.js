@@ -1,66 +1,29 @@
-/* ---------------------------------------------------------------
-   Mode: Audio Reactive
-   Web Audio AnalyserNode on one of three sources:
-     - mic (getUserMedia)
-     - a local audio file (button or drag-and-drop onto the page)
-     - a demo beat synthesized live in Web Audio (no assets), so the
-       mode works for someone with no mic and no music on hand
-
-   Every frame the FFT is split into three bands, each driving a
-   different ring of particles with a different behavior:
-     bass   (20–160 Hz)    inner ring, radius pumps outward
-     mid    (160–2000 Hz)  middle ring, spins faster and brightens
-     treble (2–12 kHz)     outer ring, jitters
-
-   Beat detection is energy based: the current bass level is compared
-   against the mean of the last second of bass levels. A beat fires
-   when it spikes past mean x threshold (with a floor and a short
-   refractory period so one kick = one beat). Each beat launches a
-   shockwave that kicks particles outward as its wavefront passes.
-   Beat spacing feeds a median-based tempo estimate.
-
-   Browser rules this file handles:
-   - An AudioContext can only start from a user gesture, so nothing
-     is created until one of the source buttons is clicked.
-   - Mic audio is never routed to the speakers (feedback), and all
-     analysis is local. Nothing is recorded or sent anywhere.
-   - destroy() stops mic tracks, the file, the demo scheduler, and
-     closes the AudioContext, so the browser's mic indicator goes
-     off the moment you switch modes.
-
-   EMBED NOTE: once this page is embedded via <iframe> in the
-   bulletin's CRT station, the parent page's iframe tag needs
-   allow="microphone" or getUserMedia will be refused inside the
-   frame. File and demo sources work either way.
------------------------------------------------------------------- */
+// Mode: Audio Reactive
 
 (function () {
-
   const UI = window.PARTICLE_UI;
 
   const DEFAULTS = {
     particles: 2400,
     sensitivity: 1.0,
-    threshold: 1.35, // beat = bass > rolling mean x this
-    trails: 0.7,     // 0 = no persistence, 0.95 = long phosphor smear
+    threshold: 1.35,
+    trails: 0.7,
   };
 
   const MAX_PARTICLES = 6000;
 
-  // Per-band gain evens out the natural tilt of music spectra
-  // (lows carry far more energy than highs).
   const BANDS = [
     { key: 'bass',   label: 'BASS', lo: 20,   hi: 160,   gain: 1.0, color: 'accent-2', share: 0.3, rMin: 0.10, rMax: 0.28 },
     { key: 'mid',    label: 'MID',  lo: 160,  hi: 2000,  gain: 1.5, color: 'accent',   share: 0.4, rMin: 0.33, rMax: 0.56 },
     { key: 'treble', label: 'TREB', lo: 2000, hi: 12000, gain: 2.6, color: 'accent-3', share: 0.3, rMin: 0.62, rMax: 0.86 },
   ];
 
-  const SPRING = 40;          // pull toward home position, 1/s^2
-  const DAMPING = 7;          // 1/s
-  const JITTER = 9000;        // treble random acceleration scale
-  const BEAT_WINDOW = 1.0;    // seconds of history for the rolling mean
-  const BEAT_FLOOR = 0.12;    // ignore "beats" in near silence
-  const BEAT_REFRACTORY = 0.24; // s, min gap between beats (~250 BPM cap)
+  const SPRING = 40;
+  const DAMPING = 7;
+  const JITTER = 9000;
+  const BEAT_WINDOW = 1.0;
+  const BEAT_FLOOR = 0.12;
+  const BEAT_REFRACTORY = 0.24;
   const SPECTRUM_BARS = 96;
 
   let params = { ...DEFAULTS };
@@ -69,7 +32,7 @@
   let lastDt = 1 / 60;
   let alive = false;
 
-  // ---- Particles (struct-of-arrays) ----
+  // ---- Particles ----
   let count = 0;
   const ring = new Uint8Array(MAX_PARTICLES);
   const homeR = new Float32Array(MAX_PARTICLES);
@@ -85,23 +48,23 @@
   // ---- Audio graph ----
   let audioCtx = null;
   let analyser = null;
-  let monitor = null;       // analyser -> monitor gain -> speakers (muted for mic)
+  let monitor = null;
   let source = null;
-  let sourceKind = 'none';  // 'none' | 'mic' | 'file' | 'demo'
+  let sourceKind = 'none';
   let micStream = null;
   let mediaEl = null;
   let objectUrl = null;
   let demo = null;
   let freq = null;
   let wave = null;
-  let requestToken = 0;     // guards against a mic prompt resolving after we've moved on
+  let requestToken = 0;
 
   // ---- Analysis state ----
-  const levels = [0, 0, 0];     // smoothed 0..1 per band (drives visuals)
-  const rawLevels = [0, 0, 0];  // unsmoothed (drives beat detection)
-  const bassHistory = [];       // [{ t, v }]
+  const levels = [0, 0, 0];
+  const rawLevels = [0, 0, 0];
+  const bassHistory = [];
   let bassMean = 0;
-  let punch = 0;                // 0..1, how far bass just jumped above its average (decays fast)
+  let punch = 0;
   let beatThresholdLevel = 0;
   let lastBeat = -1;
   let beatCount = 0;
@@ -135,7 +98,6 @@
     }
   }
 
-  // Outermost ring + spectrum bars fit inside the shorter screen side.
   function radiusScale() {
     return Math.min(width, height) * 0.44;
   }
@@ -150,19 +112,14 @@
     const R = radiusScale();
     const [bass, mid, treble] = levels;
 
-    // Mid drives the middle ring's spin. Outer and inner drift slowly.
     ringRot[0] += (0.05 + bass * 0.15) * dt;
     ringRot[1] -= (0.08 + mid * 1.4) * dt;
     ringRot[2] += (0.12 + treble * 0.3) * dt;
 
-    // Per-ring radius multipliers. The bass ring pumps on `punch` (the jump
-    // above the recent average), not raw level: a kick-heavy track keeps
-    // bass high the whole time, and pumping on that just reads as "big".
     const pump = [1 + bass * 0.15 + punch * 0.6, 1 + mid * 0.18, 1 + treble * 0.1];
     const jitter = [treble * JITTER * 0.1, treble * JITTER * 0.2, treble * JITTER];
 
-    // Advance shockwaves first so the particle loop can test crossings.
-    const maxR = Math.hypot(width, height) * 0.55; // fully faded a bit past the screen corners
+    const maxR = Math.hypot(width, height) * 0.55;
     for (const w of shockwaves) {
       w.prevR = w.r;
       w.r += 1100 * dt;
@@ -189,8 +146,6 @@
       vx[i] += ax * dt;
       vy[i] += ay * dt;
 
-      // Shockwave kick: applied once, at the moment the wavefront
-      // sweeps past this particle.
       for (const w of shockwaves) {
         const dx = px[i] - w.x;
         const dy = py[i] - w.y;
@@ -210,10 +165,9 @@
   // ---------------- Analysis ----------------
 
   function analyse(dt) {
-    const smoothing = (k) => 1 - Math.pow(1 - k, dt * 60); // frame-rate independent lerp factor
+    const smoothing = (k) => 1 - Math.pow(1 - k, dt * 60);
 
     if (sourceKind === 'none' || !analyser) {
-      // Idle: slow breathing so the rings aren't dead before a source is picked.
       const idle = [0.12 + 0.08 * Math.sin(time * 1.1), 0.1 + 0.05 * Math.sin(time * 0.7 + 1), 0.04];
       for (let b = 0; b < 3; b++) {
         rawLevels[b] = 0;
@@ -237,13 +191,11 @@
       const avg = sum / ((hi - lo + 1) * 255);
       const v = Math.min(1, avg * band.gain * params.sensitivity);
       rawLevels[b] = v;
-      // Fast attack, slower release: hits land instantly, fade smoothly.
       levels[b] += (v - levels[b]) * smoothing(v > levels[b] ? 0.6 : 0.12);
     }
 
     detectBeat(rawLevels[0]);
 
-    // Instant rise, fast exponential fall: a snap on every kick.
     const jump = Math.min(1, Math.max(0, (rawLevels[0] - bassMean) * 4));
     punch = Math.max(jump, punch * Math.pow(0.85, dt * 60));
   }
@@ -274,10 +226,6 @@
       setTimeout(() => beatLed && beatLed.classList.remove('on'), 90);
     }
 
-    // Tempo: find the median beat gap (robust to missed or extra beats),
-    // then average every gap near it. Beat times are quantized to
-    // frames (~16 ms), so a lone median can be off by a few BPM;
-    // averaging the cluster cancels most of that out.
     beatTimes.push(time);
     if (beatTimes.length > 16) beatTimes.shift();
     if (beatTimes.length >= 5) {
@@ -322,7 +270,6 @@
       freq = new Uint8Array(analyser.frequencyBinCount);
       wave = new Uint8Array(analyser.fftSize);
     }
-    // Clicking a source button is the user gesture that unlocks audio.
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 
@@ -359,8 +306,6 @@
     try { ensureAudio(); } catch (err) { setStatus(err.message, true); return; }
     stopSource();
 
-    // getUserMedia only exists on secure pages (https or localhost).
-    // Inside an iframe it also needs allow="microphone" on the parent.
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setStatus('The mic only works on a secure page (https or localhost).', true);
       return;
@@ -370,18 +315,16 @@
     const token = requestToken;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        // Raw signal: the browser's voice-call processing would squash the dynamics.
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
       if (!alive || token !== requestToken) {
-        // Switched modes or picked another source while the prompt was open.
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
       micStream = stream;
       source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
-      monitor.gain.value = 0; // never play the mic back out
+      monitor.gain.value = 0;
       sourceKind = 'mic';
       markSource('mic');
       setStatus('Listening. Audio is analyzed in the page and never leaves it.');
@@ -407,8 +350,6 @@
     mediaEl = el;
     el.src = objectUrl;
     el.loop = true;
-    // Ignore errors from an element we've already torn down (clearing
-    // its src in stopSource() can fire one late).
     el.addEventListener('error', () => {
       if (el === mediaEl) setStatus('Could not play that file. Try an mp3, wav, ogg or m4a.', true);
     });
@@ -435,10 +376,6 @@
     setStatus('Demo beat, synthesized live in Web Audio. No audio files involved.');
   }
 
-  // A small 124 BPM groove built from oscillators and filtered noise,
-  // scheduled with a look-ahead timer against the audio clock (the
-  // "tale of two clocks" pattern), so timing stays tight even though
-  // setInterval itself is sloppy.
   function createDemoBeat(ac, destination) {
     const TEMPO = 124;
     const SIXTEENTH = 60 / TEMPO / 4;
@@ -453,7 +390,7 @@
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
 
     const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
-    const ROOTS = [33, 29, 36, 31];                 // A, F, C, G (bass, one per bar)
+    const ROOTS = [33, 29, 36, 31];
     const CHORDS = [[57, 60, 64], [53, 57, 60], [55, 60, 64], [55, 59, 62]];
     const KICK = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1];
     const BASS = [1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0];
@@ -531,10 +468,10 @@
       const bar = Math.floor(i / 16) % 4;
       if (KICK[s]) kick(t);
       if (s === 4 || s === 12) {
-        noiseHit(t, 'bandpass', 1800, 0.5, 0.18); // snare
+        noiseHit(t, 'bandpass', 1800, 0.5, 0.18);
       }
-      if (s % 2 === 0) noiseHit(t, 'highpass', 7500, s % 4 === 2 ? 0.22 : 0.1, s % 4 === 2 ? 0.12 : 0.04); // hats
-      else if (bar === 3 && s > 11) noiseHit(t, 'highpass', 9000, 0.12, 0.03);                          // fill
+      if (s % 2 === 0) noiseHit(t, 'highpass', 7500, s % 4 === 2 ? 0.22 : 0.1, s % 4 === 2 ? 0.12 : 0.04);
+      else if (bar === 3 && s > 11) noiseHit(t, 'highpass', 9000, 0.12, 0.03);
       if (BASS[s]) bass(t, ROOTS[bar] + (s === 10 ? 12 : 0));
       if (s === 2 || s === 10) stab(t, CHORDS[bar]);
     }
@@ -676,7 +613,6 @@
 
     ctx.beginPath();
     for (let k = 0; k < SPECTRUM_BARS; k++) {
-      // Log-spaced so bass doesn't get squashed into a few bars.
       const hz = Math.exp(logLo + (logHi - logLo) * (k / SPECTRUM_BARS));
       const bin = Math.min(freq.length - 1, Math.round(hz / binHz));
       const mag = (freq[bin] / 255) * params.sensitivity;
@@ -691,7 +627,6 @@
     ctx.stroke();
   }
 
-  // Oscilloscope trace across the middle of the screen.
   function drawScope(ctx, cy) {
     const n = wave.length;
     const amp = Math.min(90, height * 0.12);
@@ -735,7 +670,6 @@
     resize(w, h) {
       width = w;
       height = h;
-      // Particles spring to their new home positions on their own.
     },
 
     update(dt) {
@@ -751,8 +685,6 @@
       const R = radiusScale();
       const pal = UI.palette;
 
-      // Fade toward transparent (not toward a color) so the grid behind
-      // the canvas stays visible, like phosphor persistence on a scope.
       const fade = 1 - Math.pow(params.trails, lastDt * 60);
       ctx.globalCompositeOperation = 'destination-out';
       ctx.fillStyle = `rgba(0, 0, 0, ${fade})`;
@@ -764,7 +696,6 @@
         drawSpectrum(ctx, cx, cy, R);
       }
 
-      // Shockwave rings.
       ctx.lineWidth = 1.5;
       for (const w of shockwaves) {
         ctx.beginPath();
@@ -773,8 +704,6 @@
         ctx.stroke();
       }
 
-      // Particles: one path + one fill per ring, additive so dense
-      // areas glow. Brightness tracks that ring's band level.
       ctx.globalCompositeOperation = 'lighter';
       for (let b = 0; b < 3; b++) {
         const size = b === 0 ? 2.2 : 1.6;
@@ -788,7 +717,6 @@
       }
       ctx.globalCompositeOperation = 'source-over';
 
-      // Center reticle.
       ctx.beginPath();
       ctx.moveTo(cx - 6, cy); ctx.lineTo(cx + 6, cy);
       ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 6);

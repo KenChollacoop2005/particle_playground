@@ -1,32 +1,4 @@
-/* ---------------------------------------------------------------
-   Particle Playground — shell
-   Owns the canvas, the animation loop, and mode switching.
-   Each mode is a self-contained object registered on
-   window.PARTICLE_MODES (see js/modes/*.js) that implements:
-
-     init(ctx, width, height, controlsEl)  — setup + build its own
-                                              control-row UI
-     resize(width, height)                 — react to canvas resize
-     update(dt)                            — advance simulation
-     draw(ctx)                             — render one frame
-     destroy()                             — teardown (stop audio
-                                              streams, clear
-                                              listeners, etc.)
-
-   plus some plain data and optional extras the shell uses if present:
-
-     label         — name shown on its button and in the title block
-     blurb         — "how this works" copy for the control panel: a string,
-                     or an array of strings rendered as paragraphs
-     stats()       — [[label, value], ...] rows for the HUD
-     pointer(e)    — { type: 'down'|'move'|'up'|'leave', x, y,
-                       pressed, pointerType } from mouse, pen or touch
-
-   This file never knows the internals of a mode. Adding a new
-   simulation means writing one file under js/modes/, adding its
-   <script> tag to index.html, and adding its key to MODE_ORDER below.
-   Buttons, keyboard shortcuts and the URL hash all derive from that.
------------------------------------------------------------------- */
+// Shell
 
 const MODE_ORDER = ['boids', 'slime', 'audio'];
 
@@ -46,8 +18,8 @@ const hudCloseEl = document.getElementById('hud-close');
 
 let activeMode = null;
 let activeModeKey = null;
-let modeControlsEl = null;   // the container the active mode builds into
-let controlDefaults = {};    // key -> value as built, so the hash only stores changes
+let modeControlsEl = null;
+let controlDefaults = {};
 let paused = false;
 let viewWidth = window.innerWidth;
 let viewHeight = window.innerHeight;
@@ -68,14 +40,13 @@ function resizeCanvas() {
 
   if (activeMode) {
     activeMode.resize(viewWidth, viewHeight);
-    // Resizing wipes the canvas; repaint once so a paused frame doesn't go blank.
     if (paused) activeMode.draw(ctx);
   }
 }
 
 window.addEventListener('resize', resizeCanvas);
 
-// ---------------- Mode buttons (generated from MODE_ORDER) ----------------
+// ---------------- Mode buttons ----------------
 
 const modeButtons = {};
 
@@ -96,8 +67,6 @@ MODE_ORDER.forEach((key, i) => {
   btn.append(document.createTextNode(mode.label));
   btn.addEventListener('click', (e) => {
     setMode(key);
-    // After a mouse click, drop focus so spacebar goes back to pause/resume.
-    // Keyboard activations (detail === 0) keep focus where the user put it.
     if (e.detail > 0) btn.blur();
   });
   switcherEl.appendChild(btn);
@@ -138,8 +107,6 @@ function setMode(key, { params = null, force = false } = {}) {
   buildPanel(mode);
   mode.init(ctx, viewWidth, viewHeight, modeControlsEl);
 
-  // Remember what every keyed control was built with, then apply any
-  // values from the URL on top of that.
   controlDefaults = {};
   for (const el of modeControlsEl.querySelectorAll('[data-key]')) {
     controlDefaults[el.dataset.key] = el.value;
@@ -151,7 +118,6 @@ function setMode(key, { params = null, force = false } = {}) {
   renderHud(true);
 }
 
-// Panel = blurb, then the mode's own controls, then a shared footer.
 function buildPanel(mode) {
   if (mode.blurb) {
     const details = document.createElement('details');
@@ -160,7 +126,6 @@ function buildPanel(mode) {
     const summary = document.createElement('summary');
     summary.textContent = 'How this works';
     details.appendChild(summary);
-    // One paragraph per line: why this technique, how it works, how to interact.
     for (const line of [].concat(mode.blurb)) {
       const p = document.createElement('p');
       p.textContent = line;
@@ -186,9 +151,7 @@ function resetMode() {
   setMode(activeModeKey, { force: true });
 }
 
-// ---------------- URL hash: #mode&key=value&key=value ----------------
-// Only values that differ from the mode's defaults are written, so a
-// link stays short and a default setup is just "#slime".
+// ---------------- URL hash ----------------
 
 function parseHash() {
   const raw = decodeURIComponent(location.hash.slice(1));
@@ -212,9 +175,6 @@ function writeHash() {
   history.replaceState(null, '', '#' + parts.join('&'));
 }
 
-// Sets controls by key and fires their normal events, so the mode reacts
-// exactly as if the user had moved the slider. The shell never touches
-// mode state directly.
 function applyParams(params) {
   for (const [k, v] of Object.entries(params)) {
     const el = modeControlsEl.querySelector(`[data-key="${CSS.escape(k)}"]`);
@@ -260,7 +220,6 @@ uiToggleEl.addEventListener('click', () => {
   setControlsVisible(controlsEl.classList.contains('hidden'));
 });
 
-// Start collapsed on phones so the simulation is visible first.
 if (window.matchMedia('(max-width: 640px)').matches) setControlsVisible(false);
 
 function setHudVisible(visible) {
@@ -269,8 +228,7 @@ function setHudVisible(visible) {
 
 hudCloseEl.addEventListener('click', () => setHudVisible(false));
 
-// ---------------- Info panel (top-center) ----------------
-// Closes on the × button, a click anywhere outside it, or Escape.
+// ---------------- Info panel ----------------
 
 const infoToggleEl = document.getElementById('info-toggle');
 const infoPanelEl = document.getElementById('info-panel');
@@ -288,8 +246,6 @@ infoCloseEl.addEventListener('click', () => {
   infoToggleEl.focus();
 });
 
-// Capture phase, so a click-away on the canvas only closes the panel
-// instead of also painting / firing a shockwave underneath it.
 document.addEventListener('pointerdown', (e) => {
   if (infoPanelEl.hidden) return;
   if (infoPanelEl.contains(e.target) || infoToggleEl.contains(e.target)) return;
@@ -311,9 +267,6 @@ function setPaused(p) {
 }
 
 // ---------------- Keyboard ----------------
-//   1..n   switch mode        space  pause / resume
-//   h      toggle HUD          c      toggle controls
-//   r      reset mode
 
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -328,7 +281,6 @@ window.addEventListener('keydown', (e) => {
 
   switch (e.key) {
     case ' ':
-      // A focused button/slider keeps its native spacebar behavior.
       if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SUMMARY') return;
       e.preventDefault();
       setPaused(!paused);
@@ -348,7 +300,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// ---------------- Pointer (mouse, pen and touch in one path) ----------------
+// ---------------- Pointer ----------------
 
 function forwardPointer(type, e) {
   if (!activeMode || !activeMode.pointer) return;
@@ -371,9 +323,6 @@ canvas.addEventListener('pointercancel', (e) => forwardPointer('up', e));
 canvas.addEventListener('pointerleave', (e) => forwardPointer('leave', e));
 
 // ---------------- HUD ----------------
-// FPS is counted over a half-second window; frame time is the cost of
-// update + draw only (the part this code controls), smoothed. The DOM
-// is only rewritten a few times a second so the HUD itself stays cheap.
 
 let fpsFrames = 0;
 let fpsWindowStart = performance.now();
@@ -410,7 +359,7 @@ function renderHud(force) {
 // ---------------- Animation loop ----------------
 
 function frame(now) {
-  const dt = Math.min((now - lastFrameTime) / 1000, 1 / 30); // clamp dt so tab-switches don't cause a huge jump
+  const dt = Math.min((now - lastFrameTime) / 1000, 1 / 30);
   lastFrameTime = now;
 
   if (activeMode && !paused) {

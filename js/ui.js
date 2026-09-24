@@ -1,23 +1,10 @@
-/* ---------------------------------------------------------------
-   Particle Playground — shared UI + palette
-   Loaded before the mode files. Everything a mode needs to build
-   its control panel lives here, so every mode's controls look and
-   behave the same (and main.js can find them generically for the
-   URL hash, via each control's data-key).
-
-   Palette: canvas drawing can't see CSS, so colors are read from
-   the CSS custom properties at runtime instead of being hardcoded
-   in each mode. Retheme by editing the tokens in css/style.css;
-   the canvas follows.
------------------------------------------------------------------- */
+// Shared UI + palette
 
 (function () {
-
   // ---------------- Palette ----------------
 
   const PALETTE_TOKENS = ['bg', 'text', 'text-dim', 'accent', 'accent-2', 'accent-3', 'grid'];
 
-  // Parses #rgb, #rrggbb, rgb() and rgba() into [r, g, b].
   function parseColor(str) {
     str = str.trim();
     if (str[0] === '#') {
@@ -33,8 +20,6 @@
   const palette = {
     colors: {},
 
-    // Re-reads every token from :root. Called on every mode init, so a
-    // theme change in CSS is picked up without a reload of the modes.
     refresh() {
       const style = getComputedStyle(document.documentElement);
       for (const token of PALETTE_TOKENS) {
@@ -52,8 +37,6 @@
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     },
 
-    // The three signal colors, in order. Modes that need "one color
-    // per thing" (species, frequency bands) index into this.
     signals() {
       return ['accent', 'accent-2', 'accent-3'];
     },
@@ -70,10 +53,6 @@
     return s.includes('.') ? s.split('.')[1].length : 0;
   }
 
-  // Labeled range input with a live value readout.
-  //   key       used for the URL hash (#mode&key=value), so keep it short
-  //   format    optional (value) => string for the readout
-  //   onChange  called with the parsed number on every input
   function makeSlider({ key, label, min, max, step, value, format, onChange }) {
     const id = 'ctl-' + key + '-' + (++uid);
     const decimals = decimalsFor(step);
@@ -109,7 +88,6 @@
     return row;
   }
 
-  // Labeled <select>. options: [{ value, label }]
   function makeSelect({ key, label, options, value, onChange }) {
     const id = 'ctl-' + key + '-' + (++uid);
 
@@ -146,7 +124,6 @@
     return btn;
   }
 
-  // A horizontal row of buttons.
   function makeButtonRow(buttons) {
     const row = document.createElement('div');
     row.className = 'button-row';
@@ -154,7 +131,6 @@
     return row;
   }
 
-  // Small uppercase divider label inside the panel.
   function makeSection(title) {
     const el = document.createElement('div');
     el.className = 'control-section';
@@ -169,7 +145,6 @@
     return el;
   }
 
-  // Horizontal level meter. Returns { el, set(value0to1), setMarker(value0to1) }.
   function makeMeter(label, colorName) {
     const row = document.createElement('div');
     row.className = 'meter-row';
@@ -201,7 +176,7 @@
       el: row,
       set(v) {
         const pct = Math.round(Math.max(0, Math.min(1, v)) * 100);
-        if (pct === lastPct) return; // skip DOM writes when nothing changed
+        if (pct === lastPct) return;
         lastPct = pct;
         fill.style.transform = `scaleX(${pct / 100})`;
         track.setAttribute('aria-valuenow', pct);
@@ -213,7 +188,6 @@
     };
   }
 
-  // 12345 -> "12,345"
   function formatCount(n) {
     return Math.round(n).toLocaleString('en-US');
   }
