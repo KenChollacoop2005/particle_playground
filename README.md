@@ -76,7 +76,7 @@ and demo sources work anywhere.
 
 ## Embedding
 
-When this goes inside the bulletin via `<iframe>`, the iframe needs
+If embedding into a site is required via `<iframe>` for example, the iframe needs
 `allow="microphone"` for the mic source to work. Everything else works without
 it.
 
