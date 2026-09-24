@@ -7,7 +7,7 @@ Vanilla JS + HTML5 Canvas
 
 See [FEATURES.md](FEATURES.md) for what's in here and the engineering behind it.
 
-See [Live Site]([url](https://kenchollacoop2005.github.io/particle_playground/#boids)) to play around with it
+See [Live Site](https://kenchollacoop2005.github.io/particle_playground/#boids) to play around with it
 
 ## Modes
 
