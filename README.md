@@ -80,14 +80,4 @@ When this goes inside the bulletin via `<iframe>`, the iframe needs
 `allow="microphone"` for the mic source to work. Everything else works without
 it.
 
-## Status
 
-- [x] Shell: canvas, resize, animation loop, generated mode switcher, control panel
-- [x] Shell polish: HUD, keyboard shortcuts, pause, shareable URL hash, pointer + touch input
-- [x] Boids: spatial hash, wrap-aware neighbors, predator interaction
-- [x] Slime mold: Physarum with trail cap, multi-species, presets, paint-to-attract
-- [x] Audio reactive: mic / file / synthesized demo, 3-band mapping, beat detection, tempo
-- [x] Instrument-style visual pass (all color lives in CSS tokens, so matching the bulletin later is a token swap)
-- [x] Accessibility basics: labeled controls, keyboard operable, focus styles, reduced motion
-- [ ] Final color match against the K.C. Bulletin palette
-- [ ] Deploy to GitHub Pages
