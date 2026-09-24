@@ -29,6 +29,18 @@
     </div>
   </header>
 
+  <div id="info">
+    <button id="info-toggle" type="button" title="Why this exists" aria-label="About this project" aria-expanded="false" aria-controls="info-panel">i</button>
+    <section id="info-panel" aria-labelledby="info-title" hidden>
+      <div class="info-head">
+        <span id="info-title">Why this exists</span>
+        <button id="info-close" type="button" aria-label="Close">×</button>
+      </div>
+      <p>Slime mold has stuck with me for a while, mainly because of the study where researchers put it on a map of Tokyo with food at each of the city's major stations, and it grew a network that ended up looking almost identical to the real Tokyo rail system. That always struck me as one of those results that should have led to more than it did. I wanted to actually build the simulation myself and have it in my back pocket, in case there's ever something real to do with it.</p>
+      <p>Boids and the audio mode came out of the same stretch of work. I was learning how to build particle systems in general, and these were a natural way to get that practice while ending up with something worth looking at. There's no bigger reason behind this project than that, it scratched an itch I'd had for a while.</p>
+    </section>
+  </div>
+
   <div id="ui">
     <div class="ui-top">
       <nav id="mode-switcher" aria-label="Simulation mode">

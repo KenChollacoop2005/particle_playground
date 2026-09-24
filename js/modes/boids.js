@@ -289,7 +289,11 @@
   window.PARTICLE_MODES = window.PARTICLE_MODES || {};
   window.PARTICLE_MODES.boids = {
     label: 'Boids',
-    blurb: 'Each triangle only looks at its nearby neighbors and follows three simple rules: don\'t crowd, match heading, stay close. There\'s no leader and no global plan, the flock just shows up.',
+    blurb: [
+      'Flocking is the classic example of complex group behavior coming from simple local rules, no leader and no central control needed. It\'s the same idea Craig Reynolds used in 1986 to get realistic-looking flocks and schools in animation without hand-animating a single one of them.',
+      'Each triangle only looks at its nearby neighbors and follows three rules: don\'t crowd them, match their heading, and drift toward their average position. That\'s it. No boid knows what the flock looks like, the shape is just what happens when every boid runs those three rules at once.',
+      'Hover your mouse or drag a finger near the flock and it treats you like a predator, the boids nearest you scatter and the rest follow.',
+    ],
 
     init(ctx, w, h, controlsEl) {
       params = { ...DEFAULTS };

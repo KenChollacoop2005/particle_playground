@@ -177,8 +177,8 @@ raw waveform, and phosphor-style persistence that fades toward transparent
 ## The shell
 
 - **Plug-in architecture.** Each mode implements
-  `init / resize / update / draw / destroy`, plus a label, a one-line
-  explainer, and optional `stats()` and `pointer()` hooks. The shell builds
+  `init / resize / update / draw / destroy`, plus a label, a short
+  "How this works" explainer, and optional `stats()` and `pointer()` hooks. The shell builds
   the mode buttons, keyboard shortcuts, HUD rows and URL parameters from that.
   Adding a mode is one file, one script tag and one entry in `MODE_ORDER`.
 - **Shared UI kit** (`js/ui.js`): sliders, selects, buttons, level meters and

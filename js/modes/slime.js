@@ -537,7 +537,11 @@
   window.PARTICLE_MODES = window.PARTICLE_MODES || {};
   window.PARTICLE_MODES.slime = {
     label: 'Slime Mold',
-    blurb: 'Tens of thousands of agents leave a scent trail and steer toward the strongest scent just ahead of them. The branching pattern is never drawn directly, it emerges from that one rule feeding back on itself.',
+    blurb: [
+      'This one\'s modeled on an actual organism, Physarum polycephalum, which can solve maze and shortest-path problems using nothing but this same local scent-following behavior. No brain, no plan, just chemistry.',
+      'Each agent senses a scent trail at three points just ahead of it, left, center, and right, turns toward whichever reading is strongest, moves forward, and leaves its own scent behind. Run that on thousands of agents at once and the trail-following behavior that lets one agent find a path turns into a whole branching network, without anything deciding to build one. Turn on more than one species and they\'ll compete for the same trails or avoid each other entirely, depending on how you set it.',
+      'Click and drag anywhere to paint your own scent onto the map, the colony will reroute toward it.',
+    ],
 
     init(ctx, w, h, controlsEl) {
       params = { ...DEFAULTS };

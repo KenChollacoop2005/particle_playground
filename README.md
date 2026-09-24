@@ -50,7 +50,8 @@ draw(ctx)                              // render one frame
 destroy()                              // teardown when switching away
 ```
 
-plus a `label`, a one-line `blurb`, and two optional extras: `stats()` (rows
+plus a `label`, a `blurb` (the "How this works" copy: why this technique, how
+it works, how to interact), and two optional extras: `stats()` (rows
 for the HUD) and `pointer(e)` (mouse, pen and touch in one event shape).
 
 `js/ui.js` holds the shared control builders (sliders, selects, buttons,

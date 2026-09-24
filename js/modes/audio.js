@@ -711,7 +711,11 @@
   window.PARTICLE_MODES = window.PARTICLE_MODES || {};
   window.PARTICLE_MODES.audio = {
     label: 'Audio Reactive',
-    blurb: 'Splits incoming sound into bass, mid and treble in real time. Bass pumps the inner ring, mids spin the middle one, treble shakes the outer one, and a kick drum that jumps above the recent average fires a shockwave.',
+    blurb: [
+      'The other two modes are about simple rules producing complex behavior. This one\'s a different kind of problem: taking a real, messy audio signal and turning it into motion in real time, which is closer to signal processing than simulation.',
+      'The incoming audio gets split into three frequency bands, bass, mid, and treble, and each one drives its own ring of particles. A simple beat detector watches the bass band for spikes above its own recent average and fires a shockwave in time with the beat.',
+      'Use your mic, drop in an audio file, or just hit play on the built-in demo beat, no setup needed either way. Click anywhere on the canvas to fire off your own shockwave.',
+    ],
 
     init(ctx, w, h, controlsEl) {
       params = { ...DEFAULTS };

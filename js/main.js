@@ -16,7 +16,8 @@
    plus some plain data and optional extras the shell uses if present:
 
      label         — name shown on its button and in the title block
-     blurb         — one-line "how this works" for the control panel
+     blurb         — "how this works" copy for the control panel: a string,
+                     or an array of strings rendered as paragraphs
      stats()       — [[label, value], ...] rows for the HUD
      pointer(e)    — { type: 'down'|'move'|'up'|'leave', x, y,
                        pressed, pointerType } from mouse, pen or touch
@@ -158,9 +159,13 @@ function buildPanel(mode) {
     details.open = true;
     const summary = document.createElement('summary');
     summary.textContent = 'How this works';
-    const p = document.createElement('p');
-    p.textContent = mode.blurb;
-    details.append(summary, p);
+    details.appendChild(summary);
+    // One paragraph per line: why this technique, how it works, how to interact.
+    for (const line of [].concat(mode.blurb)) {
+      const p = document.createElement('p');
+      p.textContent = line;
+      details.appendChild(p);
+    }
     controlsEl.appendChild(details);
   }
 
@@ -263,6 +268,41 @@ function setHudVisible(visible) {
 }
 
 hudCloseEl.addEventListener('click', () => setHudVisible(false));
+
+// ---------------- Info panel (top-center) ----------------
+// Closes on the × button, a click anywhere outside it, or Escape.
+
+const infoToggleEl = document.getElementById('info-toggle');
+const infoPanelEl = document.getElementById('info-panel');
+const infoCloseEl = document.getElementById('info-close');
+
+function setInfoOpen(open) {
+  infoPanelEl.hidden = !open;
+  infoToggleEl.setAttribute('aria-expanded', String(open));
+  infoToggleEl.classList.toggle('active', open);
+}
+
+infoToggleEl.addEventListener('click', () => setInfoOpen(infoPanelEl.hidden));
+infoCloseEl.addEventListener('click', () => {
+  setInfoOpen(false);
+  infoToggleEl.focus();
+});
+
+// Capture phase, so a click-away on the canvas only closes the panel
+// instead of also painting / firing a shockwave underneath it.
+document.addEventListener('pointerdown', (e) => {
+  if (infoPanelEl.hidden) return;
+  if (infoPanelEl.contains(e.target) || infoToggleEl.contains(e.target)) return;
+  setInfoOpen(false);
+  if (e.target === canvas) e.stopPropagation();
+}, true);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !infoPanelEl.hidden) {
+    setInfoOpen(false);
+    infoToggleEl.focus();
+  }
+});
 
 function setPaused(p) {
   paused = p;
